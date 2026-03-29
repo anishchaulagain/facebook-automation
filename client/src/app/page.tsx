@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Play, Square, RefreshCcw, CheckCircle2, XCircle, Copy, Clock, Settings2 } from "lucide-react";
+import { Play, Square, RefreshCcw, CheckCircle2, XCircle, Copy, Clock, Settings2, Activity } from "lucide-react";
 import api from "@/lib/api";
 import { cn, formatDate } from "@/lib/utils";
 

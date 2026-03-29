@@ -2,8 +2,8 @@ import dotenv from 'dotenv';
 import path from 'path';
 
 // Load from root .env first, then server .env (server overrides)
-dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 interface EnvConfig {
   // Server

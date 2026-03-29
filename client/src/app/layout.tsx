@@ -18,7 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} antialiased dark`}>
-      <body className="flex h-screen overflow-hidden bg-slate-900 text-slate-100">
+      <body className="flex h-screen overflow-hidden bg-slate-900 text-slate-100" suppressHydrationWarning>
         {/* Sidebar Component */}
         <Sidebar className="w-64 border-r border-slate-800 bg-slate-900/50 backdrop-blur-xl hidden md:block" />
         
