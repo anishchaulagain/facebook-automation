@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { Play, Square, RefreshCcw, CheckCircle2, XCircle, Copy, Clock, Settings2, Activity } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Play, Square, RefreshCcw, CheckCircle2, XCircle, Copy, Clock, Settings2, Activity, X, Send, ExternalLink } from "lucide-react";
 import api from "@/lib/api";
 import { cn, formatDate } from "@/lib/utils";
 
@@ -38,6 +38,8 @@ export default function Dashboard() {
   const [schedulerStatus, setSchedulerStatus] = useState<Status>({ active: false, running: false });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [previewPost, setPreviewPost] = useState<any>(null);
+  const [actionMessage, setActionMessage] = useState("");
 
   const fetchData = async () => {
     try {
@@ -65,11 +67,35 @@ export default function Dashboard() {
     if (schedulerStatus.running) return;
     try {
       setSchedulerStatus(prev => ({ ...prev, running: true }));
-      await api.post("/automation/trigger");
+      const response = await api.post("/automation/trigger");
+      
+      if (response.data && response.data.data && response.data.data.id) {
+         setPreviewPost(response.data.data);
+      } else if (response.data && response.data.message) {
+         alert(response.data.message);
+      } else if (response.data && response.data.id) {
+         setPreviewPost(response.data);
+      }
       await fetchData();
-    } catch (error) {
-      console.error("Failed to trigger pipeline");
+    } catch (error: any) {
+      alert(error.message || "Failed to trigger pipeline");
+    } finally {
       setSchedulerStatus(prev => ({ ...prev, running: false }));
+    }
+  };
+
+  const publishToFacebook = async (languageMode: string) => {
+    if (!previewPost) return;
+    try {
+       await api.post(`/posts/${previewPost.id}/publish`, { language: languageMode });
+       setActionMessage("Success! Post published to Facebook.");
+       setTimeout(() => {
+         setPreviewPost(null);
+         setActionMessage("");
+         fetchData();
+       }, 2000);
+    } catch (error: any) {
+       alert("Failed to publish: " + (error.message || "Unknown error"));
     }
   };
 
@@ -112,7 +138,7 @@ export default function Dashboard() {
             ) : (
               <Play className="w-4 h-4 fill-current transition-transform group-hover:scale-110" />
             )}
-            {schedulerStatus.running ? "Pipeline Running..." : "Run Pipeline"}
+            {schedulerStatus.running ? "Processing..." : "Fetch & Preview Top News"}
           </button>
         </div>
       </motion.div>
@@ -206,6 +232,93 @@ export default function Dashboard() {
            </div>
         </motion.div>
       </div>
+
+      {/* Manual Review Modal Overlay */}
+      <AnimatePresence>
+        {previewPost && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
+            onClick={() => { setPreviewPost(null); setActionMessage(""); }}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col shadow-2xl"
+            >
+              <div className="p-6 border-b border-slate-800 flex justify-between items-start sticky top-0 bg-slate-900 z-10">
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border bg-indigo-500/10 border-indigo-500/30 text-indigo-400">
+                      <Clock className="w-3.5 h-3.5" /> Pending Review
+                    </span>
+                    <span className="text-slate-400 text-sm">{previewPost.source_name} • Just Now</span>
+                  </div>
+                  <a href={previewPost.original_url} target="_blank" rel="noopener noreferrer" className="text-lg font-bold text-white hover:text-indigo-400 transition-colors flex items-center gap-2">
+                    {previewPost.original_title} <ExternalLink className="w-4 h-4" />
+                  </a>
+                </div>
+                <button onClick={() => { setPreviewPost(null); setActionMessage(""); }} className="p-2 bg-slate-800 text-slate-400 hover:text-white rounded-full transition-colors"><X className="w-5 h-5"/></button>
+              </div>
+
+              {actionMessage && (
+                <div className="mx-6 mt-4 p-4 bg-green-500/10 border border-green-500/20 text-green-400 rounded-xl text-center font-medium">
+                  {actionMessage}
+                </div>
+              )}
+
+              <div className="p-6 space-y-6">
+                <p className="text-slate-300">The LLM has restructured the news into three formats. Select one to publish immediately.</p>
+                {/* Restructured Content Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {previewPost.restructured_content && (
+                    <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4 relative group">
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Nepali (नेपाली)</span>
+                        <button onClick={() => publishToFacebook('nepali')} className="text-xs font-medium px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md transition-colors flex items-center gap-2 shadow-lg opacity-100 md:opacity-0 group-hover:opacity-100">
+                          <Send className="w-3 h-3"/> Post This
+                        </button>
+                      </div>
+                      <p className="text-sm text-slate-300 whitespace-pre-wrap">{previewPost.restructured_content}</p>
+                    </div>
+                  )}
+
+                  {previewPost.restructured_content_en && (
+                    <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4 relative group">
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider">English</span>
+                        <button onClick={() => publishToFacebook('english')} className="text-xs font-medium px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md transition-colors flex items-center gap-2 shadow-lg opacity-100 md:opacity-0 group-hover:opacity-100">
+                          <Send className="w-3 h-3"/> Post This
+                        </button>
+                      </div>
+                      <p className="text-sm text-slate-300 whitespace-pre-wrap">{previewPost.restructured_content_en}</p>
+                    </div>
+                  )}
+                  
+                  {previewPost.restructured_content_unicode && (
+                    <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4 relative group md:col-span-2">
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Romanized (Unicode)</span>
+                        <button onClick={() => publishToFacebook('unicode')} className="text-xs font-medium px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md transition-colors flex items-center gap-2 shadow-lg opacity-100 md:opacity-0 group-hover:opacity-100">
+                          <Send className="w-3 h-3"/> Post This
+                        </button>
+                      </div>
+                      <p className="text-sm text-slate-300 whitespace-pre-wrap font-mono">{previewPost.restructured_content_unicode}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Footer */}
+              <div className="p-6 border-t border-slate-800 bg-slate-900/80 sticky bottom-0 rounded-b-2xl flex justify-end gap-3">
+                <button onClick={() => { setPreviewPost(null); setActionMessage(""); }} className="px-5 py-2.5 border border-slate-700 hover:bg-slate-800 text-slate-300 font-medium rounded-lg transition-colors">
+                  Discard & Close
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

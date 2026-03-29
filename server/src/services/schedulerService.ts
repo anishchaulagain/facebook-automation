@@ -163,6 +163,62 @@ export async function runPipeline(): Promise<PipelineResult> {
 }
 
 /**
+ * Manual trigger: specifically fetches the top-most (newest) non-duplicate news,
+ * revamps it via LLM, saves as pending, and returns it for manual review.
+ */
+export async function processTopSingleNews(): Promise<{ post: any } | { message: string }> {
+  if (isRunning) {
+    throw new Error('Pipeline is currently running in the background. Please wait.');
+  }
+
+  isRunning = true;
+  try {
+    const stories = await fetchLatestNews();
+    
+    // Find the first non-duplicate story
+    let targetStory = null;
+    let dedupResult = null;
+    for (const story of stories) {
+      const res = await checkDuplicate(story);
+      if (!res.isDuplicate) {
+        targetStory = story;
+        dedupResult = res;
+        break;
+      }
+    }
+
+    if (!targetStory) {
+      return { message: 'All latest news items have already been processed or are duplicates.' };
+    }
+
+    // Step 3: LLM Restructuring
+    const restructured = await restructureNews(targetStory);
+    const fingerprint = getFingerprint(targetStory.title);
+    const postLanguage = (await getSetting('post_language', 'nepali')) as PostLanguage;
+
+    // Step 4: Save to database as pending
+    const status = 'pending';
+    const insertResult = await execute(
+      `INSERT INTO posts 
+      (external_id, source_name, original_title, original_url, restructured_content, restructured_content_en, restructured_content_unicode, category, severity, language, fingerprint, status, post_language)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [targetStory.external_id, targetStory.source_name, targetStory.title, targetStory.url, restructured.nepali, restructured.english, restructured.unicode, targetStory.category, targetStory.severity, targetStory.language, fingerprint, status, postLanguage]
+    );
+
+    // Fetch the inserted post
+    const [insertedPost] = await query<any[]>(
+      'SELECT * FROM posts WHERE id = ?',
+      [insertResult.insertId]
+    );
+
+    return { post: insertedPost };
+
+  } finally {
+    isRunning = false;
+  }
+}
+
+/**
  * Start the cron scheduler.
  */
 export async function startScheduler(): Promise<void> {
@@ -210,4 +266,4 @@ export function getSchedulerStatus(): { active: boolean; running: boolean } {
   };
 }
 
-export default { runPipeline, startScheduler, stopScheduler, getSchedulerStatus };
+export default { runPipeline, processTopSingleNews, startScheduler, stopScheduler, getSchedulerStatus };

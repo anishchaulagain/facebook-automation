@@ -1,13 +1,17 @@
 import { Router } from 'express';
-import { runPipeline, startScheduler, stopScheduler, getSchedulerStatus } from '../services/schedulerService.js';
+import { runPipeline, processTopSingleNews, startScheduler, stopScheduler, getSchedulerStatus } from '../services/schedulerService.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 
 const router = Router();
 
-// POST /api/automation/trigger — Manually trigger a pipeline run
+// POST /api/automation/trigger — Manually trigger a pipeline run to fetch top single news
 router.post('/trigger', asyncHandler(async (_req, res) => {
-  const result = await runPipeline();
-  res.json({ success: true, data: result });
+  const result = await processTopSingleNews();
+  if ('message' in result) {
+    res.json({ success: true, message: result.message });
+  } else {
+    res.json({ success: true, data: result.post });
+  }
 }));
 
 // GET /api/automation/status — Current scheduler state
