@@ -67,14 +67,16 @@ export default function Dashboard() {
     if (schedulerStatus.running) return;
     try {
       setSchedulerStatus(prev => ({ ...prev, running: true }));
-      const response = await api.post("/automation/trigger");
+      const response: any = await api.post("/automation/trigger");
       
-      if (response.data && response.data.data && response.data.data.id) {
-         setPreviewPost(response.data.data);
-      } else if (response.data && response.data.message) {
-         alert(response.data.message);
-      } else if (response.data && response.data.id) {
+      if (response.data && response.data.id) {
+         // Server successfully generated a new post
          setPreviewPost(response.data);
+      } else if (response.message) {
+         // Server returned a message (e.g. no new news found, or duplicates only)
+         alert(response.message);
+      } else {
+         alert("Received unexpected response from the server.");
       }
       await fetchData();
     } catch (error: any) {
